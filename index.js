@@ -1,5 +1,8 @@
-const CIDR_BLOCK_REGEX = /^([A-Fa-f0-9.:]*)\/(\d{1,3})$/;
+const CIDR_BLOCK_REGEX_6 = /^([A-Fa-f0-9.:]*)\/(\d{1,3})$/;
+const CIDR_BLOCK_REGEX_4 = /^([0-9.]*)\/(\d{1,2})$/;
 const IPv4_MASK = Buffer.from("00000000000000000000FFFF", "hex");
+
+const UINT_128_LIMIT = 0xffffffffffffffffffffffffffffffffn;
 
 function parseIPv4(IPv4) {
     let IPSegments = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(IPv4)
@@ -9,14 +12,7 @@ function parseIPv4(IPv4) {
   
     if (IPSegments.some( byte => byte > 255 )) return null
   
-    const IPv6 = Buffer.alloc(16)
-    IPv6.set(IPv4_MASK)
-    IPv6[12] = IPSegments[0]
-    IPv6[13] = IPSegments[1]
-    IPv6[14] = IPSegments[2]
-    IPv6[15] = IPSegments[3]
-  
-    return IPv6
+    return Buffer.from(IPSegments)
 }
   
 function parseIPv6(IPv6) {
@@ -89,9 +85,43 @@ function parseIPv6(IPv6) {
     return buffer
 }
 
+function CheckBufferZero(buf) {
+    for (const byte of buf) {
+        if (byte !== 0) return false;
+    }
+    return true;
+}
+
+class IPv4Block {
+    constructor(blockStr) {
+        const regexResult = CIDR_BLOCK_REGEX_4.exec(blockStr);
+        if (!regexResult) throw Error("Invalid CIDR Notation.");
+
+        const maskBits = parseInt(regexResult[2]);
+        if (maskBits > 32) throw Error("Illegal Amount of Bits.");
+
+        this.rawAddress = parseIPv4(regexResult[1]).readUInt32BE();
+        this.maskBits = maskBits;
+        this.mask = (0xffffffff << (32 - this.maskBits)) & 0xffffffff; // Generate MSB Bitmask
+
+        // Make Mask Unsigned
+        this.mask = this.mask >>> 0;
+
+        const leftMask = 0xffffffff >>> this.maskBits;
+
+        if ((this.rawAddress & leftMask) != 0) throw Error("Values exceed Subnet Mask");
+    }
+
+    equals(ipv4) {
+        if (((ipv4.readUInt32BE() & this.mask) >>> 0) !== this.rawAddress) return false;
+
+        return true;
+    }
+}
+
 class IPv6Block {
     constructor(blockStr) {
-        const regexResult = CIDR_BLOCK_REGEX.exec(blockStr);
+        const regexResult = CIDR_BLOCK_REGEX_6.exec(blockStr);
         if (!regexResult) throw Error("Invalid CIDR Notation.");
 
         const maskBits = parseInt(regexResult[2]);
@@ -100,10 +130,19 @@ class IPv6Block {
         this.rawAddress = parseIPv6(regexResult[1]);
         this.maskBytes = maskBits >> 3; // Optimization of maskBits / 8
         this.maskBits = maskBits & 7; // Optimization of maskBits % 8
-        this.mask = (255 << (8 - this.maskBits)) & 0xff; // Generate MSB Bitmask
+        this.mask = (0xff << (8 - this.maskBits)) & 0xff; // Generate MSB Bitmask
 
         this.preamble = this.rawAddress.subarray(0, this.maskBytes);
-        this.partialByte = this.mask != 0 ? this.rawAddress[this.maskBytes] & this.mask : 0;
+        this.partialByte = this.mask !== 0 ? this.rawAddress[this.maskBytes] & this.mask : 0;
+
+        if (this.maskBits !== 0) {
+            const leftMask = 0xff >> this.maskBits;
+
+            if ((this.rawAddress[this.maskBytes] & leftMask) != 0) throw Error("Values exceed Subnet Mask");
+            if (!CheckBufferZero(this.rawAddress.subarray(this.maskBytes + 1))) throw Error("Values exceed Subnet Mask");
+        } else {
+            if (!CheckBufferZero(this.rawAddress.subarray(this.maskBytes))) throw Error("Values exceed Subnet Mask");
+        }
     }
 
     equals(ipv6) {
@@ -117,5 +156,6 @@ class IPv6Block {
 module.exports = {
     parseIPv4,
     parseIPv6,
-    IPv6Block
+    IPv6Block,
+    IPv4Block
 }
