@@ -1,0 +1,17 @@
+{
+  "name": "ipv6-parser",
+  "version": "1.0.0",
+  "description": "IPv6 Buffer Parser",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DevKingSaul/IPv6-Parser.git"
+  },
+  "keywords": ["IPv6", "IP"],
+  "author": "DevKingSaul",
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/DevKingSaul/IPv6-Parser/issues"
+  },
+  "homepage": "https://github.com/DevKingSaul/IPv6-Parser#readme"
+}
