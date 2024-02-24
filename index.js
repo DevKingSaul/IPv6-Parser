@@ -35,7 +35,7 @@ function parseIPv6(IPv6) {
                 if (!IPv4Segments)
                     throw Error("Bad IPv4 Segment");
 
-                IPv4Segments = IPv4Segments.slice(1, 5).map( byte => Number(byte).toString(16) )
+                IPv4Segments = IPv4Segments.slice(1, 5).map( byte => Number(byte).toString(16).padStart(2, "0") )
 
                 if (IPv4Segments.some( byte => byte.length > 2 )) throw Error("Bad IPv4 Segment")
 
